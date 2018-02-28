@@ -1,0 +1,299 @@
+<html>
+  <head>
+    <title></title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <script type="text/javascript" src="./jquery-1.7.1.min.js"></script>
+    <!-- removing jQuery altogether should not be difficult to do if single html file is called for -->
+    <style type="text/css">
+    	body, hr {margin: 0; padding: 0}
+    	canvas {background-color: teal}
+    </style>
+  </head>
+  <body>
+  <div id="inputs">
+  <noscript><h1>JavaScript!</h1></noscript>
+  	<table>
+  		<tr>
+  			<td><table>
+				<tr>
+  					<td><label for="A">alpha:</label></td>
+					<td><input type="text" name="alpha" id="alpha" value="30" /></td>
+  				</tr>
+  				<tr>
+  					<td><label for="refin">refin:</label></td>
+					<td><input type="text" name="refin" id="refin" value="1.5" /></td>
+  				</tr>
+				<tr>
+  					<td><label for="refin2">refin2:</label></td>
+					<td><input type="text" name="refin2" id="refin2" value="1" /></td>
+  				</tr>
+  				<tr>
+  					<td><label for="numberOfRays">No of rays / 2:</label></td>
+					<td><input type="text" name="numberOfRays" id="numberOfRays" value="10" /></td>
+  				</tr>
+				<tr>
+  					<td><label for="validDigits">valid digits:</label></td>
+					<td><input type="text" name="validDigits" id="validDigits" value="5" /></td>
+  				</tr> 	
+  			</table></td>
+  			<td><table>
+  				<tr>
+  					<td><label for="rays">rays:</label></td>
+  					<td><input type="checkbox" name="rays" id="rays" /></td>
+  				</tr>
+  				<tr>
+  					<td><label for="curve">curve:</label></td>
+  					<td><input type="checkbox" name="curve" id="curve" /></td>
+  				</tr>
+  				<tr>
+  					<td><label for="tangents">tangents:</label></td>
+  					<td><input type="checkbox" name="tangents" id="tangents" /></td>
+  				</tr>
+  				<tr>
+  					<td><label for="normals">normals:</label></td>
+  					<td><input type="checkbox" name="normals" id="normals" /></td>
+  				</tr>
+  				<tr>
+  					<td><label for="output">svg with handles:</label></td>
+  					<td><input type="checkbox" name="output" id="output" /></td>
+  				</tr>
+  			</table></td>
+  		</tr>
+  	</table>
+  <hr id="cara">
+  </div>
+  <canvas></canvas>
+
+  <script>
+jQuery("input").change(function () {
+	recalculate()
+})
+
+recalculate()
+
+/// FUNCTIONS ///
+
+function recalculate() {
+	jQuery("#svg").html("")
+	alpha = toRadians(document.querySelector("#alpha").value/2.0) // float
+	refin = document.querySelector("#refin").value*1.0 // float
+	refin2 = document.querySelector("#refin2").value*1.0 // float
+	segments = Math.round(document.querySelector("#numberOfRays").value)*2 - 1 // int
+	validDigits = Math.round(document.querySelector("#validDigits").value) // int
+	rays = jQuery("#rays").is(":checked") // bool
+	curve = jQuery("#curve").is(":checked") // bool
+	tangents = jQuery("#tangents").is(":checked") // bool
+	normals = jQuery("#normals").is(":checked") // bool
+	output = jQuery("#output").is(":checked") // bool	
+	canvas = document.querySelector("canvas")
+	canvas.width = document.getElementById("cara").clientWidth
+	canvas.height = document.querySelector("body").clientHeight - document.getElementById("inputs").clientHeight
+	margin = canvas.height*0.1
+	c = canvas.getContext("2d")
+	canvasX = canvas.width - 2*margin
+	canvasY = canvas.height - 2*margin
+	Sx = canvas.width/2
+	Sy = canvas.height/2
+	Fx = canvas.width - margin
+	Fy = Sy
+	Hy = margin
+	Hx = Fx - Math.abs(Fy - Hy)*Math.cos(alpha)/Math.sin(alpha)
+	theta = findTheta(alpha, refin, refin2)
+	handleY = canvasY/(2*segments)
+	handle1 = new Array(Hx, (Hy + handleY))
+	handle2 = new Array(Hx, (Hy - handleY))
+	points = new Array([[Hx, Hy], handle1, handle2, 0, theta, alpha])
+	for (i = 1; i <= segments; i++) {
+		myHy = Hy + (i/segments)*canvasY
+		myHx = Hx
+		myAlpha = sizeOfAngle([Fx, Fy], [myHx, myHy], [Fx, myHy])
+		myTheta = findTheta(myAlpha, refin, refin2)
+		if (myAlpha == Math.PI/2) {
+			myAlpha = 0
+			myTheta = 0
+		}
+		if (i*2 > segments) {
+			myAlpha *= -1
+			myTheta *= -1
+		}
+		handle1 = new Array(myHx, (myHy + handleY))
+		handle2 = new Array(myHx, (myHy - handleY))
+		points.push([[myHx, myHy], handle1, handle2, 0, myTheta, myAlpha]) 
+	}
+	points2 = move(points, refin, refin2, validDigits, [Fx, Fy], 0, handleY)
+	// I will redo the bottom half of the curve here because it is easier. Doing so inside the recursion would be more correct.
+	points3 = new Array()
+	for (i = points2.length/2 - 1; i >= 0; i--) {
+		points3.unshift(points2[i])
+		points3.push([[points2[i][0][0], points2[i][0][1] + 2*(Sy - points2[i][0][1])], [points2[i][1][0]- 2*Math.abs(points2[i][0][0] - points2[i][1][0]), points2[i][1][1] + 2*(Sy - points2[i][0][1])], [points2[i][2][0] + 2*Math.abs(points2[i][0][0] - points2[i][2][0]), points2[i][2][1] + 2*(Sy - points2[i][0][1])], points2[i][3], points2[i][4]])
+	}
+	for (i = 0; i < points3.length; i++) {
+		if (curve == true && i < points3.length - 1) {
+			c.beginPath()
+			c.strokeStyle="tan"
+      	c.moveTo(points3[i][0][0], points3[i][0][1])
+      	c.lineTo(points3[i + 1][0][0], points3[i + 1][0][1])
+      	c.stroke()	
+		}
+		alpha = sizeOfAngle([Fx, Fy], points3[i][0], [Fx, points3[i][0][1]])
+		J = rotatePoint([Fx, Fy], points3[i][0], Math.PI - alpha)
+		if (rays == true) {
+			c.beginPath()
+			c.strokeStyle="black"
+			c.moveTo(Fx, Fy)
+      	c.lineTo(points3[i][0][0], points3[i][0][1])
+     		c.lineTo(J[0], J[1])
+      	c.stroke()
+		}
+		if (tangents == true) {
+			c.beginPath()
+			c.strokeStyle="purple"
+			c.moveTo(points3[i][1][0], points3[i][1][1])
+      	c.lineTo(points3[i][2][0], points3[i][2][1])
+      	c.stroke()
+		}
+		if (normals == true) {
+			c.beginPath()
+			c.strokeStyle="gold"
+			B1 = rotatePoint(points3[i][1], points3[i][0], -1*Math.PI/2)
+			B2 = rotatePoint(points3[i][1], points3[i][0], Math.PI/2)
+			c.moveTo(B1[0], B1[1])
+      	c.lineTo(B2[0], B2[1])
+      	c.stroke()
+		}
+	}
+	svg = "\<svg width=\"" + canvasX + "\" height=\"" + canvasY + "\"\>\<polyline points=\""
+	for (i = 0; i < points3.length; i++) {
+		svg += points3[i][0] + "," + points3[i][1] + "\n"
+	}
+	svg += "\"\/\>\<\/svg\>"
+	console.log(svg)
+	if (output == true) {
+		// I was being lazy
+	}	
+}
+
+function findTheta(alpha, refin, refin2) {
+/**		Snell's law
+*/
+	return Math.asin(Math.sin(alpha)*refin/refin2)
+}
+
+function move(points, refin, refin2, validDigits, F, round, handleY) { // recursion
+/**		INPUT array of points in format [point[x], point[y]], [handle1[x], handle1[y]], [handle2[x], handle2[y], theta, alpha]
+*			OUTPUT array of points and their handles 
+*/
+	round += 1
+	doesAnyoneNeedMoving = 0
+	points2 = new Array()
+	points3 = new Array()
+	o = 0
+	for (i = 0; i < points.length; i++) {
+		theta = points[i][4]
+		p = Math.sin(theta)*handleY/Math.cos(theta)
+		Hx = points[i][0][0]
+		Hy = points[i][0][1]
+		handle1x = Hx
+		handle2x = Hx
+		handle1y = points[i][1][1]
+		handle2y = points[i][2][1]
+		if (i > 0 && i < points.length/2 || i > points.length/2 - 1) {
+			o += 2*p
+		} else if (i == 0) {
+			o += p
+		}
+		handle1x += p
+		handle2x -= p	
+		Hx += o
+		handle1x += o
+		handle2x += o
+		alpha2 = sizeOfAngle(F, [Hx, Hy], [F[0], Hy])
+		theta2 = findTheta(alpha2, refin, refin2)
+		/*alert(
+		"round "
+		+ round + " --- " + i +
+		"\nvariables used"
+		+
+		"\np\t"
+		+ shorten(p, 1) +
+		"\no\t"
+		+ shorten(o, 1) +
+		"\nH:\t\t"
+		+ shorten(points[i][0][0], 2) + " " + Math.round(points[i][0][1]) + "\t" + shorten(Hx, 2) + " " + Math.round(Hy) +
+		"\nhandle1:\t"
+		+ Math.round(points[i][1][0]) + " " + Math.round(points[i][1][1]) + "\t" + Math.round(handle1x) + " " + Math.round(handle1y) +
+		"\nhandle2:\t"
+		+ Math.round(points[i][2][0]) + " " + Math.round(points[i][2][1]) + "\t" + Math.round(handle2x) + " " + Math.round(handle2y) +
+		"\ntheta:\t"
+		+ Math.round(toDegrees(points[i][3])) + "\t" +
+		"\ntheta2:\t"
+		+ "\t" + Math.round(toDegrees(theta2)) 
+		)*/
+		if (shorten(toDegrees(theta2), validDigits) != shorten(toDegrees(points[i][3]), validDigits)) { // complaints?
+			doesAnyoneNeedMoving = 1
+		}
+		points3.push([[Hx, Hy], points[i][1], [handle2x, handle2y], theta, alpha2])
+		points2.push([[points[i][0][0], points[i][0][1]], [handle1x, handle1y], [handle2x, handle2y], theta, theta2, alpha])
+	}
+	if (doesAnyoneNeedMoving == 0 /*|| round == 1*/) { // done
+		return points3
+	}
+	return move(points2, refin, refin2, validDigits, F, round, handleY) // repeat
+}
+
+function toDegrees(radians) {
+/**	INPUT radians (rad, float)
+*		OUTPUT degrees (deg, float)
+*/
+	return(radians*180.0/Math.PI)
+}
+
+function toRadians(degrees) {
+/**	INPUT degrees (deg, float)
+*		OUTPUT radians (rad, float)
+*/
+	return(degrees*Math.PI/180.0)
+}
+
+function shorten(number, validDigits) {
+/**	INPUT number float, validDigits int
+*		OUTPUT number float shortened to its valid digits
+*/
+	return Math.round(number*Math.pow(10, validDigits))/Math.pow(10, validDigits)*1.0
+}
+
+function sizeOfAngle(A, S, B) {
+/**	INPUT points A - beginning, S - center, B - end point
+*		points in format [Ax, Ay]
+*		OUTPUT angle (rad)
+*/
+	ux = A[0] - S[0]
+	uy = A[1] - S[1]
+	vx = B[0] - S[0]
+	vy = B[1] - S[1]
+	if((ux*ux + uy*uy)*(vx*vx + vy*vy) == 0) {
+		return 0
+	}
+	return Math.acos((ux*vx + uy*vy)/(Math.sqrt(ux*ux + uy*uy)*Math.sqrt(vx*vx + vy*vy)))
+}
+
+function lengthOfSegment(A, B) {
+/**	INPUT points in format [Ax, Ay], floats
+*		OUTPUT float
+*/
+	return(Math.sqrt((A[0] - B[0])*(A[0] - B[0]) + (A[1] - B[1])*(A[1] - B[1])))
+}
+
+function rotatePoint(A, S, fi) {
+/**	INPUT points A - rotated point, S - centre, fi - angle of rotation (rad)
+*    points in format [Ax, Ay], angle fi (float)
+*		OUTPUT point B
+*/
+	r = lengthOfSegment(A, S)
+	originOfRotation = new Array(S[0] + r, S[1])
+	originalAngle = sizeOfAngle(originOfRotation, S, A)
+	return(new Array(S[0] + r*Math.cos(fi + originalAngle), S[1] + r*Math.sin(fi + originalAngle)))
+}
+   </script>
+  </body>
+</html>
