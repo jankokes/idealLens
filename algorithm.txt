@@ -1,0 +1,3 @@
+I choose a focal point. I dirve rays from it in a fan fashion toward lens, which for now is in shape of mere segment. The segment has its position in horizontal plane and its given height. For each ray I can calculate what inclination will our now straight curve have in point of intersection so that refracted ray leads horizontally. I move points of the curve so that it corresponds with calculated derivatives.
+[![enter image description here][1]][1] 
+But this moves the points into different distance from focal point and originally calculated derivatives will no longer refract the rays horizontally. I repeat the process with more and more exact curve, until I reach required tolerance.
